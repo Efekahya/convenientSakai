@@ -1,0 +1,44 @@
+<LoginWidget>:
+    GridLayout:
+        id: grid
+        cols: 1
+        pos: 100,300
+        TextInput:
+            id: email
+            hint_text: "Username"
+            multiline: False
+        TextInput:
+            id: password
+            hint_text: "Password"
+            password: True
+            multiline: False
+        Button:
+            text: "Login"
+            on_press: 
+                root.login()
+                app.root.current = 'screen2'
+
+<MainWidget>:
+    id : mainWidget
+    do_default_tab: False
+    TabbedPanelItem:
+        id: tab1
+        text: "Duyurular"
+    TabbedPanelItem:
+        id: tab2
+        text: "Ödevler"
+    TabbedPanelItem:
+        id: tab3
+        text: "Canlı Dersler"
+<ScreenOne>:
+    LoginWidget:
+        id: login
+
+<ScreenTwo>:
+    MainWidget:
+        id: main
+<ScreenManager>:
+    ScreenOne:
+        name: 'screen1'
+    ScreenTwo:
+        name: 'screen2'
