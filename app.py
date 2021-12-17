@@ -12,9 +12,9 @@ from kivy.clock import Clock
 from kivy.uix.textinput import TextInput
 from kivy.uix.label import Label
 from kivy.uix.scrollview import ScrollView
+from kivy.metrics import sp
 import main
 from main import *
-Window.size = (375, 412)
 
 
 class LoginWidget(Widget):
@@ -34,45 +34,72 @@ class LoginWidget(Widget):
 
 
 def showOdevler(dersler):
-    layout = GridLayout(cols=1, spacing=10)
-    view = ScrollView()
+    App.get_running_app().root.get_screen("screen2").ids.main.ids.rv2grid.add_widget(Label(text=""))
     for i in range(len(dersler)):
+        App.get_running_app().root.get_screen(
+            "screen2").ids.main.ids.rv2grid.add_widget(Label(text=dersler[i].name, size_hint_x=None, width=Window.size[0]))
+        y = 0
         for j in range(len(dersler[i].odev)):
             h = dersler[i].odev[j]
             if h != "Yok":
-                layout.add_widget(Label(text=h["content"]))
+                text = h["dueTime"] + " - " + h["content"]
+                a = len(text.strip().replace('\n'*2, '\n'))
+                x = Window.size[0]
+                x = x/12
+                a = a/x
+                y = 30
+                for l in range(text.strip().replace('\n'*2, '\n').count('\n')):
+                    y += 15
+                for k in range(int(a)):
+                    y += 12
 
-    view.add_widget(layout)
-    App.get_running_app().root.get_screen(
-        "screen2").ids.main.ids.tab1.add_widget(view)
+                App.get_running_app().root.get_screen(
+                    "screen2").ids.main.ids.rv2grid.add_widget(TextInput(text=text.strip().replace('\n'*2, '\n'), size_hint_y=None,  height=sp(y), multiline=True, disabled=True))
 
 
 def showDuyurular(dersler):
-    layout = GridLayout(cols=1, spacing=10)
-    view = ScrollView()
+    App.get_running_app().root.get_screen("screen2").ids.main.ids.rv1grid.add_widget(Label(text=""))
     for i in range(len(dersler)):
+        App.get_running_app().root.get_screen(
+            "screen2").ids.main.ids.rv1grid.add_widget(Label(text=dersler[i].name, size_hint_x=None, width=Window.size[0]))
+        y = 0
         for j in range(len(dersler[i].duyuru)):
             h = dersler[i].duyuru[j]
-            layout.add_widget(Label(text=h))
+            a = len(h.strip().replace('\n'*2, '\n'))
+            x = Window.size[0]
+            x = x/12
+            a = a/x
+            y = 30
 
-    view.add_widget(layout)
-    App.get_running_app().root.get_screen(
-        "screen2").ids.main.ids.tab2.add_widget(view)
+            for l in range(h.strip().replace('\n'*2, '\n').count('\n')):
+                y += 12
+            for k in range(int(a)):
+                y += 12
+            App.get_running_app().root.get_screen(
+                "screen2").ids.main.ids.rv1grid.add_widget(TextInput(text=h.strip().replace('\n'*2, '\n'), size_hint_y=None, height=sp(y), multiline=True, disabled=True))
 
 
 def showMeeting(dersler):
-    layout = GridLayout(cols=1, spacing=10)
-    view = ScrollView()
+    App.get_running_app().root.get_screen("screen2").ids.main.ids.rv3grid.add_widget(Label(text=""))
+
     for i in range(len(dersler)):
+        App.get_running_app().root.get_screen(
+            "screen2").ids.main.ids.rv3grid.add_widget(Label(text=dersler[i].name, size_hint_x=None, width=Window.size[0]))
+        y = 0
         for j in range(len(dersler[i].meeting)):
             if dersler[i].meeting[j] != "Yok":
                 h = dersler[i].meeting[j]
                 text = h["meetingStartDate"] + " - " + h["meetingUrl"]
-                layout.add_widget(Label(text=text))
+                a = len(text.strip().replace('\n'*2, '\n'))
 
-    view.add_widget(layout)
-    App.get_running_app().root.get_screen(
-        "screen2").ids.main.ids.tab3.add_widget(view)
+                x = Window.size[0]
+                x = x/12
+                a = a/x
+                y = 30
+                for k in range(int(a)):
+                    y += 20
+                App.get_running_app().root.get_screen(
+                    "screen2").ids.main.ids.rv3grid.add_widget(TextInput(text=text.strip().replace('\n'*2, '\n'), size_hint_y=None, height=sp(y), multiline=True, disabled=True))
 
 
 class MainWidget(TabbedPanel):
