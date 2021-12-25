@@ -1,190 +1,124 @@
-from auth import auth
-import requests
-import json
-import os
-import time
-import threading
-from bs4 import BeautifulSoup as soup
-# Create a file named auth.py and paste this
-# auth = {'eid': 'username', 'pw': 'pass', 'submit': 'Giriş'}
-# And change 'username' and 'pass' with your credentials
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import mysql.connector
+import hashlib
+import htmlParserHelper
+hostName = "localhost"
+serverPort = 8080
+
+cnx = mysql.connector.connect(user='root', password='pass', host='localhost')
+cursor = cnx.cursor(buffered=True)
+cursor.execute("CREATE DATABASE IF NOT EXISTS efe DEFAULT CHARACTER SET utf8 DEFAULT COLLATE utf8_general_ci;")
+cursor.execute("USE efe")
+cursor.execute("CREATE TABLE IF NOT EXISTS user (id INT AUTO_INCREMENT PRIMARY KEY,username VARCHAR(255) NOT NULL, password VARCHAR(255) NOT NULL, loggedIn INT NOT NULL, sakaiUsername VARCHAR(255), SakaiPassword VARCHAR(255),dersIdList VARCHAR(2550), dersNameList TEXT, dersHocaList TEXT, odevList TEXT, duyuruList TEXT, meetingList TEXT)")
 
 
-# Username and password
+class MyServer(BaseHTTPRequestHandler):
 
+    def do_POST(self):
 
-siteLink = 'https://online.deu.edu.tr'
-loginurl = siteLink + '/relogin'
+        if "/registerSakai" in self.path:
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            username = self.path.split("?")[1].split("&")[0].split("=")[1]
+            password = self.path.split("?")[1].split("&")[1].split("=")[1]
+            password = hashlib.sha256(password.encode('utf-8')).hexdigest()
 
+            sakaiUsername = self.path.split("?")[1].split("&")[2].split("=")[1]
+            sakaiPassword = self.path.split("?")[1].split("&")[3].split("=")[1]
+            auth = {"eid": sakaiUsername, "pw": sakaiPassword, "submit": "Giriş"}
+            cursor.execute("SELECT loggedIn FROM user WHERE username = %s AND password = %s", (username, password))
+            user = cursor.fetchone()
+            if user[0] == 1:
+                if htmlParserHelper.verifyUser(auth):
+                    response = {"Login": "Sakai User Added Successfully"}
+                    self.wfile.write(bytes(str(response), "utf-8"))
+                    cursor.execute("UPDATE user SET sakaiUsername = %s, sakaiPassword = %s WHERE username = %s AND password = %s",
+                                   (sakaiUsername, sakaiPassword, username, password))
+                    cnx.commit()
+                else:
+                    response = {"Login": "Sakai User Verification Unsuccessful Please Check Your Credentials"}
+                    self.wfile.write(bytes(str(response), "utf-8"))
+            else:
+                response = {"Login": "You are not logged in"}
+                self.wfile.write(bytes(str(response), "utf-8"))
 
-# Logged in kalmak için tüm işlemleri session içinde yapıyoruz
-with requests.session() as s:
+        elif "/register" in self.path:
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
 
-    senddata = s.post(loginurl, data=auth)
+            username = self.path.split("?")[1].split("&")[0].split("=")[1]
+            password = self.path.split("?")[1].split("&")[1].split("=")[1]
 
-    def getDersIDAndNames():
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
 
-        site_url = siteLink + '/portal/favorites/get'
-        response = s.get(site_url)
+            cursor.execute("SELECT id,username,password FROM user WHERE username=%s", (username,))
 
-        result_json = json.loads(response.text)
-        ders_IDs = result_json['favoriteSiteIds']
-
-
-        ders_Names = []
-        hoca_Names = []
-        for i in range(len(ders_IDs)):
-
-
-            site_url = siteLink + '/direct/site/' + ders_IDs[i] + '.json'
-            response = s.get(site_url)
-            result = json.loads(response.text)
-
-            getDersNamesFromJson = result['entityTitle']
-            getHocaNamesFromJson = result["props"]["contact-name"]
-            ders_Names.append(getDersNamesFromJson)
-            hoca_Names.append(getHocaNamesFromJson)
-
-
-        items = ["dersName", "dersId", "dersHoca"]
-
-        merge = []
-        for i in range(len(ders_IDs)):
-            merge.append([ders_Names[i], ders_IDs[i], hoca_Names[i]])
-
-        list_json = [dict(zip(items, item)) for item in merge]
-
-        with open('dersler.json', 'w') as f:
-          
-            f.write(json.dumps(list_json))
-            f.close()
-
-    class Ders:
-        def __init__(self, name, id, hoca, odev=["Yok"], duyuru=["Yok"], meeting=[]):
-            self.name = name
-            self.id = id
-            self.hoca = hoca
-            self.odev = odev
-            self.duyuru = duyuru
-            self.meeting = meeting
-        # Duyuruları al ve self.duyuru ya kaydet
-
-        def getAnnouncement(self):
-            # Dersin json urlsi
-            site_URL = "https://online.deu.edu.tr/direct/announcement/site/" + self.id + ".json"
-            response = s.get(site_URL)
-
-            # Hatalı dosya çıkabiliyor o yüzden try except bloğu kullandım
-            try:
-                result = json.loads(response.content)
-                a = result["announcement_collection"]
-            except:
-                a = []
-            # placeholder olarak kullanıyorum "b" değişkenini nedense direk self.duyuru ya appendlediğimde tüm dersler için değiştiriyor.
-            b = []
-            for i in range(len(a)):
-                b.append(soup(a[i]["body"], "html.parser").text)
-            self.duyuru = b
-
-        def getAssignment(self):
-
-
-            site_URL = "https://online.deu.edu.tr/direct/assignment/site/" + self.id + ".json"
-
-            response = s.get(site_URL)
-
-            if response.status_code == 404:
-                pass
+            if cursor.fetchone() is None:
+                self.wfile.write(bytes("{\"status\":\"success\"}", "utf-8"))
+                password = hashlib.sha256(password.encode()).hexdigest()
+                cursor.execute("INSERT INTO user (username, password,loggedIn) VALUES (%s, %s,%s)", (username, password, 0))
+                cnx.commit()
+                # ask for sakai credentials
+                # send to sakai
 
             else:
-                result = json.loads(response.text)
-                a = result["assignment_collection"]
-                if a == []:
-                    pass
+                self.wfile.write(bytes("{\"status\":\"fail\"}", "utf-8"))
+
+        elif "/login" in self.path:
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+
+            username = self.path.split("?")[1].split("&")[0].split("=")[1]
+            password = self.path.split("?")[1].split("&")[1].split("=")[1]
+            password = hashlib.sha256(password.encode()).hexdigest()
+
+            cursor.execute("SELECT * FROM user WHERE username = %s AND password = %s", (username, password))
+
+            if cursor.fetchone() is not None:
+                print("Login successful")
+                cursor.execute("SELECT sakaiUsername, sakaiPassword FROM user WHERE username = %s AND password = %s", (username, password))
+                sakaiCred = cursor.fetchone()
+                if sakaiCred[0] is None:
+                    response = {"Login": "Successful", "SakaiStatus": "Not Registered"}
+                    self.wfile.write(bytes(str(response), "utf-8"))
                 else:
-                    ödevlist = []
-                    for i in range(len(a)):
-                        # Ödev in saatini epoch cinsinden alıp prettify ediyorum.
-                        if a[i]["dueTime"]["epochSecond"] + 9000 - time.time() > 0:
-                            getDueTime = a[i]["dueTime"]["epochSecond"] + 9000
-                            convertToTuple = time.gmtime(getDueTime)
-                            time_string = time.strftime("%d/%m/%Y, %H:%M:%S", convertToTuple)
-                            # Ödevin body kısmı
-                            odevContent = soup(a[i]["instructions"], "html.parser").text
-                            ödevlist.append({"dueTime": time_string, "content": odevContent})
-                    self.odev = ödevlist
+                    response = {"Login": "Successful", "SakaiStatus": "Registered"}
+                    self.wfile.write(bytes(str(response), "utf-8"))
+                    # Get data from sakai
+                    auth = {"eid": sakaiCred[0], "pw": sakaiCred[1], "submit": "Giriş"}
+                    htmlParserHelper.calistir(auth)
 
-        def getMeetingIdAndJoin(self):
+                cursor.execute("UPDATE user SET loggedIn = 1 WHERE username = %s", (username,))
+                cnx.commit()
+            else:
+                print("Wrong username or password")
+                response = {"Login": "Unsuccessful"}
+                self.wfile.write(bytes(str(response), "utf-8"))
 
-            site_URL = "https://online.deu.edu.tr/direct/bbb-tool.json?siteId=" + self.id
-            response = s.get(site_URL)
-            result = json.loads(response.text)
-            a = result["bbb-tool_collection"]
-            meetings = []
-            for i in range(len(a)):
-                # Eğer toplantının başlama saati 2+ saati geçmişse id sini alma
-                if (int(time.time()) - int(str(a[i]["startDate"])[:-3])) < 100000:
-                    meetingStartDate = a[i]["startDate"] / 1000 + 9000+1800
-                    convertToTuple = time.gmtime(meetingStartDate)
-                    time_string = time.strftime("%d/%m/%Y, %H:%M:%S", convertToTuple)
-                    # Aldığın id ler valid mi ?
-                    site_URL = "https://online.deu.edu.tr/direct/bbb-tool/" + a[i]["id"] + "/joinMeeting"
-                    response = s.get(site_URL)
+        elif "/logout" in self.path:
+            self.send_response(200)
+            self.send_header("Content-type", "application/json")
+            self.end_headers()
+            username = self.path.split("?")[1].split("&")[0].split("=")[1]
+            cursor.execute("UPDATE user SET loggedIn = 0 WHERE username = %s", (username,))
+            cnx.commit()
+            response = {"Logout": "Successful"}
+            self.wfile.write(bytes(str(response), "utf-8"))
 
-                    if "alreadyEnded" in response.text:
-                        isMeetingStarted = "Ended"
-                    elif "notStarted" in response.text:
-                        isMeetingStarted = "Scheculed"
-                    else:
-                        isMeetingStarted = True
-                    meetings.append({"meetingId": a[i]["id"], "meetingStartDate": time_string,
-                                    "siteName": self.name, "available": isMeetingStarted, "meetingUrl": site_URL})
-                self.meeting = meetings
 
-# İlk kez çalıştırılıyorsa
-if os.path.isfile("dersler.json"):
-    # Ders bilgisini dosyadan al
-    with open("dersler.json", "r") as f:
-        dersInfo = json.loads(f.read())
-else:
+if __name__ == "__main__":
+    webServer = HTTPServer((hostName, serverPort), MyServer)
+    print("Server started http://%s:%s" % (hostName, serverPort))
 
-    getDersIDAndNames()
-    with open("dersler.json", "r") as f:
-        dersInfo = json.loads(f.read())
+    try:
+        webServer.serve_forever()
+    except KeyboardInterrupt:
+        pass
 
-# Ders objelerini oluştur.
-dersler = []
-for i in range(len(dersInfo)):
-    dersler.append(Ders(dersInfo[i]["dersName"], dersInfo[i]["dersId"], dersInfo[i]["dersHoca"]))
-
-# Threading
-
-duyurular = [threading.Thread(target=dersler[i].getAnnouncement, args=()) for i in range(len(dersler))]
-ödevler = [threading.Thread(target=dersler[i].getAssignment, args=()) for i in range(len(dersler))]
-meetingler = [threading.Thread(target=dersler[i].getMeetingIdAndJoin, args=()) for i in range(len(dersler))]
-
-for i in range(len(dersler)):
-    duyurular[i].start()
-    ödevler[i].start()
-    meetingler[i].start()
-for i in range(len(dersler)):
-    # Threadi bitir
-    duyurular[i].join()
-    ödevler[i].join()
-    meetingler[i].join()
-# dersler[5].getAnnouncement()
-# dersler[5].getAssignment()
-# dersler[5].getMeetingIdAndJoin()
-
-# for i in range(len(dersler)):
-#     print(dersler[i].name)
-#     print("MEETING :", dersler[i].meeting)
-    # print("DUYURU :", dersler[i].duyuru)
-    # print("ODEV :", dersler[i].odev)
-# print(dersler[5].odev)
-
-# for i in range(len(dersler)):
-#     for j in range(len(dersler[i].odev)):
-#         h = dersler[i].odev[j]
-#         if h != "Yok":
-#             print(h["content"])
+    webServer.server_close()
+    print("Server stopped.")
