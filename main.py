@@ -17,6 +17,15 @@ siteLink = 'https://online.deu.edu.tr'
 loginurl = siteLink + '/relogin'
 
 
+def verifyUser(auth):
+    with requests.session() as s:
+        senddata = s.post(loginurl, data=auth, verify=False)
+        if "şifreniz hatalı" in senddata.text:
+            print("Hatalı kullanıcı adı veya şifre")
+            return False
+        else:
+            return True
+
 # Logged in kalmak için tüm işlemleri session içinde yapıyoruz
 with requests.session() as s:
     senddata = s.post(loginurl, data=auth)
@@ -140,6 +149,10 @@ if os.path.isfile("dersler.json"):
     # Ders bilgisini dosyadan al
     with open("dersler.json", "r") as f:
         dersInfo = json.loads(f.read())
+        if dersInfo == []:
+            getDersIDAndNames()
+            with open("dersler.json", "r") as f:
+                dersInfo = json.loads(f.read())
 else:
     getDersIDAndNames()
     with open("dersler.json", "r") as f:
