@@ -9,7 +9,7 @@ import mysql.connector
 # Create a file named auth.py and paste this
 # auth = {'eid': 'username', 'pw': 'pass', 'submit': 'Giriş'}
 # And change 'username' and 'pass' with your credentials
-
+requests.packages.urllib3.disable_warnings()
 
 # Username and password
 
@@ -28,7 +28,7 @@ def verifyUser(auth):
             return True
 
 
-def calistir(auth):
+def calistir(auth, username):
     # Logged in kalmak için tüm işlemleri session içinde yapıyoruz
     with requests.session() as s:
         senddata = s.post(loginurl, data=auth, verify=False)
@@ -62,10 +62,7 @@ def calistir(auth):
 
             list_json = [dict(zip(items, item)) for item in merge]
 
-            with open('dersler.json', 'w') as f:
-
-                f.write(json.dumps(list_json))
-                f.close()
+            return list_json
 
         class Ders:
             def __init__(self, name, id, hoca, odev=["Yok"], duyuru=["Yok"], meeting=["Yok"]):
@@ -153,21 +150,12 @@ def calistir(auth):
                     if "test" in locals():
                         self.meeting = meetings
 
-    # İlk kez çalıştırılıyorsa
-    if os.path.isfile("dersler.json"):
-        # Ders bilgisini dosyadan al
-        with open("dersler.json", "r") as f:
-            dersInfo = json.loads(f.read())
-    else:
-        getDersIDAndNames()
-        with open("dersler.json", "r") as f:
-            dersInfo = json.loads(f.read())
-
     # Ders objelerini oluştur.
+    ders_list = getDersIDAndNames()
     dersler = []
-    for i in range(len(dersInfo)):
-        dersler.append(Ders(dersInfo[i]["dersName"], dersInfo[i]
-                       ["dersId"], dersInfo[i]["dersHoca"]))
+    for i in range(len(ders_list)):
+        dersler.append(Ders(ders_list[i]["dersName"], ders_list[i]
+                       ["dersId"], ders_list[i]["dersHoca"]))
 
     # Threading
 
@@ -188,64 +176,50 @@ def calistir(auth):
         duyurular[i].join()
         ödevler[i].join()
         meetingler[i].join()
-    # dersler[5].getAnnouncement()
-    # dersler[5].getAssignment()
-    # dersler[5].getMeetingIdAndJoin()
-
-    for i in range(len(dersler)):
-        print(dersler[i].name)
-        print("MEETING :", dersler[i].meeting)
-        # print("DUYURU :", dersler[i].duyuru)
-        print("ODEV :", dersler[i].odev)
-    # print(dersler[5].odev)
-
-    # for i in range(len(dersler)):
-    #     print(dersler[i].name)
-    #     for j in range(len(dersler[i].odev)):
-    #         h = dersler[i].odev[j]
-    #         if h != "Yok":
-    #             print(h["content"])
-    #         else:
-    #             print("Yok")
 
     cnx = mysql.connector.connect(user='root', password='pass', host='localhost')
     cursor = cnx.cursor(buffered=True)
     cursor.execute("USE efe")
-    id = []
-    name = []
-    duyuru = []
-    hoca = []
-    odev = []
-    meeting = []
+    cursor.execute("SELECT userId FROM user WHERE username = %s", (username,))
+    userId = cursor.fetchone()[0]
 
     for i in range(len(dersler)):
-        id.append(dersler[i].id)
-        name.append(dersler[i].name)
-        hoca.append(dersler[i].hoca)
-    for i in range(len(dersler)):
-
-        for j in range(len(dersler[i].duyuru)):
-            h = dersler[i].duyuru[j]
-            if h != "Yok" and h != []:
-                duyuru.append(h)
+        cursor.execute("SELECT COUNT(siteId) FROM dersler WHERE userId = %s AND siteId = %s", (userId, str(dersler[i].id)))
+        count = cursor.fetchone()[0]
+        if count == 0:
+            cursor.execute("INSERT INTO dersler (userId, siteId, dersName, dersHoca) VALUES (%s, %s, %s, %s)",
+                           (userId, str(dersler[i].id), str(dersler[i].name), str(dersler[i].hoca),))
+            lastDersId = cursor.lastrowid
 
         for j in range(len(dersler[i].odev)):
             h = dersler[i].odev[j]
             if h != "Yok":
-                odev.append(h["content"])
+                cursor.execute("SELECT dersId FROM dersler WHERE userId = %s AND siteId = %s", (userId, str(dersler[i].id,)))
+                dersId = cursor.fetchone()[0]
+                cursor.execute("SELECT dersId FROM odevler WHERE dersId = %s AND icerik = %s", (dersId, str(h["content"],)))
+
+                if cursor.fetchone() is None:
+                    cursor.execute("INSERT INTO odevler (dersId, dueTime, icerik) VALUES (%s, %s, %s)",
+                                   (lastDersId, str(h["dueTime"]), str(h["content"]),))
+
+        for j in range(len(dersler[i].duyuru)):
+            h = dersler[i].duyuru[j]
+            if h != "Yok":
+                cursor.execute("SELECT dersId FROM dersler WHERE userId = %s AND siteId = %s", (userId, str(dersler[i].id),))
+                dersId = cursor.fetchone()[0]
+                cursor.execute("SELECT dersId FROM duyurular WHERE dersId = %s AND icerik = %s", (dersId, str(h),))
+
+                if cursor.fetchone() is None:
+                    cursor.execute("INSERT INTO duyurular (dersId, icerik) VALUES (%s, %s)", (lastDersId, str(h),))
 
         for j in range(len(dersler[i].meeting)):
             h = dersler[i].meeting[j]
             if h != "Yok":
-                meeting.append(h["meetingId"], h["meetingUrl"], h["meetingStartDate"], h["available"])
-
-    if odev == []:
-        odev = "Yok"
-    if duyuru == []:
-        duyuru = "Yok"
-    if meeting == []:
-        meeting = "Yok"
-
-    cursor.execute("UPDATE user SET dersIdList = %s, dersNameList = %s, dersHocaList = %s, duyuruList = %s, odevList = %s , meetingList = %s  WHERE sakaiUsername = %s",
-                   (str(id), str(name), str(hoca), str(duyuru), str(odev), str(meeting), auth["eid"]))
+                cursor.execute("SELECT dersId FROM dersler WHERE userId = %s AND siteId = %s", (userId, str(dersler[i].id),))
+                dersId = cursor.fetchone()[0]
+                cursor.execute("SELECT dersId FROM meetingler WHERE dersId = %s AND joinLink = %s", (dersId, str(h["meetingUrl"]),))
+                if cursor.fetchone() is None:
+                    cursor.execute("INSERT INTO meetingler (dersId, dueTime, available, joinLink) VALUES (%s, %s, %s, %s)",
+                                   (lastDersId, str(h["meetingStartDate"]), str(h["available"]), str(h["meetingUrl"]),))
+    print("Dersler başarıyla eklendi.")
     cnx.commit()

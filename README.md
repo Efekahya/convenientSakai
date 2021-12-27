@@ -2,19 +2,27 @@
 
 # AUTH 
 
-'username' ve 'pass' kısımlarını kendi numaralı mail ve şifrenizle değiştirin.
-auth = {'eid': 'username', 'pw': 'pass', 'submit': 'Giriş'}
-
-auth = {'eid': '1111111111@ogr.deu.edu.tr', 'pw': '12345', 'submit': 'Giriş'}
+You need to have a mysql server up and running.</br>
+</br>
+You can change the credentials in the htmlParserHelper.py and server.py files</br>
+||</br>
+\/</br>
+cnx = mysql.connector.connect(user='root', password='pass', host='localhost')</br>
 
 # USAGE
 
-print(dersler[7].name)<br />
-print(dersler[7].duyuru)<br />
-print(dersler[7].meeting[0]["content"]<br />
-print(dersler[7].meeting[0]["meetingUrl"]
+With POST method you can request: 
+http://localhost:8080/register?username=user&password=pass&email=xxxx@gmail.com
+http://localhost:8080/login?username=user&password=pass
+http://localhost:8080/registerSakai?username=user&password=pass&sakaiUsername=xxxxxxxx@ogr.deu.edu.tr&sakaiPass=pass
+http://localhost:8080/logout?username=user&password=pass
+http://localhost:8080/forgotPassword?username=user&password=pass
 
-#### Tüm dersleri yazdır ####
+There is also a reset pasword path but it will be send to your email when you send a request to forgotPassword
 
-for i in range(len(dersler)):<br />
-  &ensp;&ensp;&ensp;&ensp;print(dersler[i].name)
+With POST method you can request from database:
+http://localhost:8080/getSakai?username=xxxx&password=xxxx&request=dersler
+http://localhost:8080/getSakai?username=xxxx&password=xxxx&request=odevler
+http://localhost:8080/getSakai?username=xxxx&password=xxxx&request=duyurular
+http://localhost:8080/getSakai?username=xxxx&password=xxxx&request=meetingler
+
