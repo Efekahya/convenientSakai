@@ -6,7 +6,7 @@ You need to have a mysql server up and running.</br>
 </br>
 You can change the credentials in the htmlParserHelper.py and server.py files</br>
 ||</br>
-\/</br>
+\\/</br>
 cnx = mysql.connector.connect(user='root', password='pass', host='localhost')</br>
 
 # USAGE
